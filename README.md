@@ -28,7 +28,7 @@ participant information sheets for accessibility by hand. This is that job, auto
 npm install
 docker compose up -d          # pgvector on localhost:5433
 npm run db:schema             # apply packages/adapters/src/pg/schema.sql
-cp .env.example .env          # add your ANTHROPIC_API_KEY
+cp .env.example .env          # add your GEMINI_API_KEY (free tier works)
 npm run test                  # unit tests (no services needed)
 npm run test:integration      # needs the database
 npm run dev                   # http://localhost:3000
@@ -42,8 +42,11 @@ npm run evals                 # runs the golden sets, writes evals/RESULTS.md
    (hybrid retrieval), `get_section` (full section text), `readability_report`.
 3. System rules: every claim must carry a citation to a retrieved chunk; if the document does
    not contain the answer, say so; never give medical advice, and say who to ask instead.
-4. Tool steps run on `claude-haiku-4-5`; the final answer runs on `claude-sonnet-5`. Cost and
-   latency per step are logged and rolled up into the eval table.
+4. The LLM sits behind a provider port: one env var switches between Gemini (default,
+   `gemini-2.5-flash` answers with `gemini-2.5-flash-lite` tool steps) and Anthropic
+   (`claude-sonnet-5` answers with `claude-haiku-4-5` tool steps). In both cases the split is
+   the same idea: cheap fast model where it suffices, stronger model for the user-facing
+   answer. Cost and latency per step are logged and rolled up into the eval table.
 5. The UI shows the step trace, so you can watch the agent decide.
 
 ## Build log

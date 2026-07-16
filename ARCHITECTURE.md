@@ -53,10 +53,15 @@ runner that does this automatically; we intentionally own the loop because the c
 matter here: step limits, trace capture for the UI, guardrail enforcement between steps, and
 cost accounting per step.
 
-Cost-aware model split: tool-selection steps and eval judging run on `claude-haiku-4-5`
-($1/$5 per MTok); the final user-facing answer runs on `claude-sonnet-5` ($3/$15). The eval
-results table records cost and latency per configuration so the tradeoff is measured, not
-asserted.
+Cost-aware model split, provider-agnostic: `LLM_PROVIDER` selects the adapter at the
+composition root; the core never knows which vendor is running. Defaults: Gemini
+(`gemini-2.5-flash` for answers, `gemini-2.5-flash-lite` for tool steps; AI Studio free tier)
+or Anthropic (`claude-sonnet-5` at $3/$15 per MTok for answers, `claude-haiku-4-5` at $1/$5
+for tool steps). Either way the split is the same discipline: the cheap fast model wherever
+it suffices, the stronger model only for the user-facing answer. The eval results table
+records cost and latency per configuration so the tradeoff is measured, not asserted. The
+Gemini adapter was added after the Anthropic one without touching a line of core: the
+dependency-inversion claim, demonstrated in the commit history.
 
 ## Retrieval: hybrid BM25 + vector, one store
 

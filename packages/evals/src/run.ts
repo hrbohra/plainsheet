@@ -16,7 +16,7 @@ import {
   askQuestion, fleschKincaidGrade,
   type Answer, type ReadingLevel,
 } from '@plainsheet/core';
-import { AnthropicLlm, LocalEmbeddings, PgChunkRepository, createLogger } from '@plainsheet/adapters';
+import { createLlmFromEnv, LocalEmbeddings, PgChunkRepository, createLogger } from '@plainsheet/adapters';
 
 interface GoldenCase {
   id: string;
@@ -89,14 +89,18 @@ async function main() {
   const pool = new pg.Pool({ connectionString: process.env['DATABASE_URL'] });
   const repo = new PgChunkRepository(pool);
   const embeddings = new LocalEmbeddings();
-  const llm = new AnthropicLlm();
-  const logger = createLogger({ app: 'evals' });
+  const selection = createLlmFromEnv();
+  const llm = selection.llm;
+  const logger = createLogger({ app: 'evals', llmProvider: selection.provider });
 
   const config = {
-    answerModel: process.env['ANSWER_MODEL'] ?? 'claude-sonnet-5',
-    toolModel: process.env['TOOL_MODEL'] ?? 'claude-haiku-4-5',
+    answerModel: selection.answerModel,
+    toolModel: selection.toolModel,
     maxSteps: Number(process.env['MAX_AGENT_STEPS'] ?? 6),
   };
+
+  // Free-tier RPM headroom: space out cases when running on Gemini's free tier.
+  const interCaseDelayMs = Number(process.env['EVAL_DELAY_MS'] ?? (selection.provider === 'gemini' ? 5000 : 0));
 
   const chunkTextById = async (id: string): Promise<string | null> => {
     const sectionId = id.split('::').slice(0, 2).join('::');
@@ -106,6 +110,9 @@ async function main() {
 
   const results: CaseResult[] = [];
   for (const c of golden.cases) {
+    if (results.length > 0 && interCaseDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, interCaseDelayMs));
+    }
     const t0 = Date.now();
     const answer = await askQuestion(
       {
