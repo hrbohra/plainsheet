@@ -86,6 +86,23 @@ describe('askQuestion agent loop', () => {
     expect(llm.requests.at(-1)?.model).toBe('answer-model');
   });
 
+  it('strips literal quote marks the model wraps around citation quotes', async () => {
+    const llm = scriptedLlm([
+      {
+        content: [{ type: 'text', text: 'You can stop [cite:sheet1::s3::0|"withdraw from the study at any time"].' }],
+        stopReason: 'end_turn', model: 'tool-model', usage,
+      },
+      {
+        content: [{ type: 'text', text: 'You can stop [cite:sheet1::s3::0|"withdraw from the study at any time"].' }],
+        stopReason: 'end_turn', model: 'answer-model', usage,
+      },
+    ]);
+    const answer = await askQuestion(deps(llm), {
+      question: 'Can I quit?', readingLevel: 'plain', requestId: 'req-quotes',
+    });
+    expect(answer.citations[0]?.quote).toBe('withdraw from the study at any time');
+  });
+
   it('classifies refusals', async () => {
     const llm = scriptedLlm([
       {

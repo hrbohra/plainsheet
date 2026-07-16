@@ -34,15 +34,17 @@ function systemPrompt(readingLevel: ReadingLevel): string {
       : 'Write for a clinically literate reader: precise terms are fine, stay concise.';
   return [
     'You answer questions about ONE clinical trial participant information sheet.',
-    'Hard rules, in priority order:',
-    '1. Only state what the document supports. Every factual claim must end with a citation',
+    'Hard rules, in priority order (rule 1 outranks everything):',
+    '1. Never give medical advice, opinions on whether to join a trial, interpretations of',
+    '   symptoms, or guidance on taking, skipping, or changing doses of any medicine. This',
+    '   applies even when the document does not mention the topic. If asked, reply with',
+    '   exactly the marker REFUSED_MEDICAL_ADVICE followed by one sentence explaining you can',
+    '   only describe the document, and who to ask instead.',
+    '2. Only state what the document supports. Every factual claim must end with a citation',
     '   marker of the form [cite:<chunkId>|<short verbatim quote from that chunk>].',
-    '2. If the document does not contain the answer, reply with exactly the marker',
-    '   NOT_IN_DOCUMENT followed by one sentence saying the sheet does not cover it and',
-    '   suggesting the participant ask the study team.',
-    '3. Never give medical advice, opinions on whether to join a trial, or interpretations of',
-    '   symptoms. If asked, reply with exactly the marker REFUSED_MEDICAL_ADVICE followed by',
-    '   one sentence explaining you can only describe the document, and who to ask instead.',
+    '3. If the question is not medical advice and the document does not contain the answer,',
+    '   reply with exactly the marker NOT_IN_DOCUMENT followed by one sentence saying the',
+    '   sheet does not cover it and suggesting the participant ask the study team.',
     '4. Use search_sheet before answering; use get_section when you need context.',
     level,
   ].join('\n');
@@ -64,7 +66,10 @@ function parseAnswer(raw: string): { kind: AnswerKind; text: string; citations: 
   }
   const citations: Citation[] = [];
   const text = raw.replace(CITATION_PATTERN, (_m, chunkId: string, quote: string) => {
-    citations.push({ chunkId: chunkId.trim(), sectionHeading: '', quote: quote.trim() });
+    // Models sometimes wrap the quote in literal quote marks; strip them so the
+    // verbatim faithfulness check compares the actual quoted text.
+    const cleaned = quote.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+    citations.push({ chunkId: chunkId.trim(), sectionHeading: '', quote: cleaned });
     return `[${citations.length}]`;
   });
   return { kind: 'answered', text: text.trim(), citations };
