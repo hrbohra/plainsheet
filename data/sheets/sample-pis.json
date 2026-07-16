@@ -1,0 +1,28 @@
+{
+  "id": "sample-pis",
+  "title": "Participant Information Sheet: ACTIVE-Study (sample)",
+  "studyName": "ACTIVE-Study",
+  "note": "Synthetic sample modeled on the structure of published HRA participant information sheets. Replace or add real PUBLIC published sheets before the demo; never anything unpublished.",
+  "sections": [
+    {
+      "heading": "What is the purpose of the study?",
+      "text": "We are testing whether a structured exercise programme before surgery improves recovery afterwards. The study will compare two groups of participants over twelve months. Taking part is entirely voluntary."
+    },
+    {
+      "heading": "What will happen to me if I take part?",
+      "text": "You will attend four visits. At the first visit we will explain the study and take some measurements. At the second visit a nurse will take a blood sample and you will complete a fitness assessment. The third and fourth visits repeat these measurements to track your progress. Each visit takes about one hour."
+    },
+    {
+      "heading": "Can I withdraw from the study?",
+      "text": "Yes. You are free to withdraw from the study at any time, without giving a reason, and this will not affect the standard of care you receive. If you withdraw, we will ask whether we may keep the information already collected."
+    },
+    {
+      "heading": "What are the possible side effects?",
+      "text": "The exercise programme is designed to be safe, but you may experience muscle soreness or tiredness after sessions. A small number of people may feel dizzy during the fitness assessment. A side effect should be reported to the study team as soon as possible. Blood samples can cause brief discomfort or minor bruising."
+    },
+    {
+      "heading": "Will my taking part be kept confidential?",
+      "text": "Yes. All information collected about you will be kept strictly confidential. Your data will be stored using a study number rather than your name. Only the research team will be able to link this number to you, and your data will be handled in line with UK data protection law."
+    }
+  ]
+}

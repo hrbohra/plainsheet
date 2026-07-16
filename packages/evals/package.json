@@ -1,0 +1,16 @@
+{
+  "name": "@plainsheet/evals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build",
+    "evals": "node dist/run.js"
+  },
+  "dependencies": {
+    "@plainsheet/adapters": "*",
+    "@plainsheet/core": "*",
+    "pg": "^8.12.0",
+    "yaml": "^2.4.0"
+  }
+}
