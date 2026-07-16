@@ -96,7 +96,8 @@ export default function Home() {
       <h1 style={{ marginBottom: 4 }}>PlainSheet</h1>
       <p style={{ color: '#555', marginTop: 0 }}>
         Clinical trial participant information, made navigable. Answers cite the exact
-        paragraph. Never medical advice.
+        paragraph. Never medical advice.{' '}
+        <a href="/about" style={{ whiteSpace: 'nowrap' }}>New here? How it works →</a>
       </p>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '1rem 0' }}>
