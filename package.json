@@ -1,0 +1,26 @@
+{
+  "name": "plainsheet",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Makes clinical trial participant information navigable: a tool-using agent with hybrid retrieval, an MCP server, and an eval harness.",
+  "workspaces": [
+    "packages/core",
+    "packages/adapters",
+    "packages/mcp-server",
+    "packages/evals",
+    "apps/web"
+  ],
+  "scripts": {
+    "typecheck": "tsc --build packages/core packages/adapters packages/mcp-server packages/evals",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "evals": "npm run evals --workspace=@plainsheet/evals",
+    "dev": "npm run dev --workspace=web",
+    "db:up": "docker compose up -d",
+    "db:schema": "node packages/adapters/scripts/apply-schema.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
