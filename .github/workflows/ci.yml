@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_evals:
+        description: Run the eval suite (spends API tokens)
+        type: boolean
+        default: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Unit tests (no services)
+        run: npm run test
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: plainsheet
+          POSTGRES_PASSWORD: plainsheet
+          POSTGRES_DB: plainsheet
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U plainsheet" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://plainsheet:plainsheet@localhost:5433/plainsheet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:integration
+
+  evals:
+    # Spends real API tokens: manual dispatch only, or a push to main with [evals] in the message.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.run_evals) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[evals]'))
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: plainsheet
+          POSTGRES_PASSWORD: plainsheet
+          POSTGRES_DB: plainsheet
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U plainsheet" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://plainsheet:plainsheet@localhost:5433/plainsheet
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run db:schema
+      - run: node scripts/ingest-sample.mjs
+      - run: npm run evals
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: evals/RESULTS.md
