@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node -e \"try{require('fs').copyFileSync('../../.env','.env.local')}catch{}\"",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"

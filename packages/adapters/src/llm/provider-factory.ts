@@ -28,9 +28,10 @@ export function createLlmFromEnv(): LlmSelection {
   return {
     llm: new GeminiLlm(),
     provider: 'gemini',
-    // Flash for answers, flash-lite for tool steps: both have AI Studio free-tier
-    // quotas as of Jul 2026. Override via env if these ids age out.
-    answerModel: process.env['ANSWER_MODEL'] ?? 'gemini-2.5-flash',
-    toolModel: process.env['TOOL_MODEL'] ?? 'gemini-2.5-flash-lite',
+    // Rolling aliases: Google gates dated model ids for new API keys, so the
+    // -latest aliases are the stable choice (verified against a fresh key,
+    // Jul 2026; scripts/list-models.mjs shows what a given key can use).
+    answerModel: process.env['ANSWER_MODEL'] ?? 'gemini-flash-latest',
+    toolModel: process.env['TOOL_MODEL'] ?? 'gemini-flash-lite-latest',
   };
 }

@@ -31,9 +31,11 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>; // JSON Schema
 }
 
+// `meta` is opaque provider continuation data (e.g. Gemini thought signatures).
+// Core copies it through message history untouched; only the owning adapter reads it.
 export type LlmContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'text'; text: string; meta?: unknown }
+  | { type: 'tool_use'; id: string; name: string; input: unknown; meta?: unknown }
   | { type: 'tool_result'; toolUseId: string; content: string; isError?: boolean };
 
 export interface LlmMessage {

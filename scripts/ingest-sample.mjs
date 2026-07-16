@@ -1,7 +1,11 @@
 // Ingest the bundled sample sheet: node scripts/ingest-sample.mjs
 // (after: docker compose up -d && npm run db:schema && npm run build workspaces)
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { loadEnv } from './env.mjs';
+
+loadEnv(fileURLToPath(new URL('../.env', import.meta.url)));
 import { PgChunkRepository, LocalEmbeddings, createLogger } from '@plainsheet/adapters';
 import { ingestSheet } from '@plainsheet/core';
 

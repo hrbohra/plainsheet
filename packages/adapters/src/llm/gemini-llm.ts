@@ -16,6 +16,8 @@ interface GeminiPart {
   text?: string;
   functionCall?: { name: string; args?: Record<string, unknown> };
   functionResponse?: { name: string; response: Record<string, unknown> };
+  /** Gemini 3+ models sign parts and require the signature echoed on replay. */
+  thoughtSignature?: string;
 }
 interface GeminiContent { role: 'user' | 'model'; parts: GeminiPart[]; }
 
@@ -36,39 +38,22 @@ export class GeminiLlm implements LlmProvider {
       parts: m.content.map((b) => this.toGeminiPart(b)),
     }));
 
-    const response = await this.client.models.generateContent({
-      model: request.model,
-      contents,
-      config: {
-        systemInstruction: request.system,
-        maxOutputTokens: request.maxTokens,
-        ...(request.tools
-          ? {
-              tools: [{
-                functionDeclarations: request.tools.map((t) => ({
-                  name: t.name,
-                  description: t.description,
-                  parameters: this.toGeminiSchema(t.inputSchema),
-                })),
-              }],
-            }
-          : {}),
-      },
-    });
-
+    const response = await this.withRetry(() => this.generate(request, contents));
     const candidate = response.candidates?.[0];
     const parts = (candidate?.content?.parts ?? []) as GeminiPart[];
 
     const content: LlmContentBlock[] = [];
     let functionCallIndex = 0;
     for (const part of parts) {
-      if (part.text) content.push({ type: 'text', text: part.text });
+      const meta = part.thoughtSignature ? { thoughtSignature: part.thoughtSignature } : undefined;
+      if (part.text) content.push({ type: 'text', text: part.text, ...(meta ? { meta } : {}) });
       if (part.functionCall?.name) {
         content.push({
           type: 'tool_use',
           id: `${part.functionCall.name}#${functionCallIndex++}`,
           name: part.functionCall.name,
           input: part.functionCall.args ?? {},
+          ...(meta ? { meta } : {}),
         });
       }
     }
@@ -92,6 +77,44 @@ export class GeminiLlm implements LlmProvider {
     };
   }
 
+  private generate(request: LlmRequest, contents: GeminiContent[]) {
+    return this.client.models.generateContent({
+      model: request.model,
+      contents,
+      config: {
+        systemInstruction: request.system,
+        maxOutputTokens: request.maxTokens,
+        ...(request.tools
+          ? {
+              tools: [{
+                functionDeclarations: request.tools.map((t) => ({
+                  name: t.name,
+                  description: t.description,
+                  parameters: this.toGeminiSchema(t.inputSchema),
+                })),
+              }],
+            }
+          : {}),
+      },
+    });
+  }
+
+  /** Retry transient provider failures (429/500/503) with backoff; the AI Studio
+   * free tier throws these routinely under load. Non-transient errors rethrow. */
+  private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
+    const delaysMs = [1000, 3000, 8000];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const status = (err as { status?: number }).status ?? 0;
+        const transient = status === 429 || status === 500 || status === 503;
+        if (!transient || attempt >= delaysMs.length) throw err;
+        await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
+      }
+    }
+  }
+
   costUsd(model: string, inputTokens: number, outputTokens: number): number {
     const key = Object.keys(PRICING).find((k) => model.startsWith(k));
     if (!key) return 0; // free tier
@@ -100,11 +123,18 @@ export class GeminiLlm implements LlmProvider {
   }
 
   private toGeminiPart(block: LlmContentBlock): GeminiPart {
+    const signature =
+      block.type !== 'tool_result' && block.meta && typeof block.meta === 'object'
+        ? (block.meta as { thoughtSignature?: string }).thoughtSignature
+        : undefined;
     switch (block.type) {
       case 'text':
-        return { text: block.text };
+        return { text: block.text, ...(signature ? { thoughtSignature: signature } : {}) };
       case 'tool_use':
-        return { functionCall: { name: block.name, args: (block.input ?? {}) as Record<string, unknown> } };
+        return {
+          functionCall: { name: block.name, args: (block.input ?? {}) as Record<string, unknown> },
+          ...(signature ? { thoughtSignature: signature } : {}),
+        };
       case 'tool_result': {
         const name = block.toolUseId.split('#')[0] ?? block.toolUseId;
         return {

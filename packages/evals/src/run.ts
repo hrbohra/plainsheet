@@ -41,6 +41,15 @@ interface CaseResult {
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..');
 
+// Dev convenience: load the repo-root .env for plain-node runs (no override).
+try {
+  const { readFileSync: read } = await import('node:fs');
+  for (const line of read(join(repoRoot, '.env'), 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (m && m[2] !== '' && process.env[m[1]!] === undefined) process.env[m[1]!] = m[2]!;
+  }
+} catch { /* no .env file: fine, real env vars are set */ }
+
 async function scoreCase(
   answer: Answer,
   c: GoldenCase,
