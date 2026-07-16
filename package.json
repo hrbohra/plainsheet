@@ -17,7 +17,8 @@
     "evals": "npm run evals --workspace=@plainsheet/evals",
     "dev": "npm run dev --workspace=web",
     "db:up": "docker compose up -d",
-    "db:schema": "node packages/adapters/scripts/apply-schema.mjs"
+    "db:schema": "node packages/adapters/scripts/apply-schema.mjs",
+    "build:packages": "tsc --build packages/core packages/adapters"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1",
