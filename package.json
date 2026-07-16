@@ -20,6 +20,7 @@
     "db:schema": "node packages/adapters/scripts/apply-schema.mjs"
   },
   "devDependencies": {
+    "playwright-core": "^1.61.1",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   }

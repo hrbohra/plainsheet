@@ -22,6 +22,22 @@ participant information sheets for accessibility by hand. This is that job, auto
 | Clean architecture: framework-free core, ports and adapters, one composition root | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Guardrails: cite or refuse; hard refusal of medical advice, adversarially tested | eval golden sets |
 
+## Screenshots
+
+Real output against a real published sheet (University of Salford TKR trial, IRAS 317409):
+
+**Cited plain-English answer, with the agent's step trace live on the right:**
+
+![Cited answer with agent trace](docs/screenshots/ask-cited-answer.png)
+
+**An advice-seeking question refused by design:**
+
+![Medical advice refused](docs/screenshots/ask-refusal.png)
+
+**The study-team accessibility report (Flesch-Kincaid grade per section, jargon candidates):**
+
+![Accessibility report](docs/screenshots/audit-report.png)
+
 ## Quickstart
 
 ```bash
