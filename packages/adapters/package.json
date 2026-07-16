@@ -1,0 +1,22 @@
+{
+  "name": "@plainsheet/adapters",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.60.0",
+    "@plainsheet/core": "*",
+    "@xenova/transformers": "^2.17.0",
+    "pg": "^8.12.0",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0"
+  }
+}
