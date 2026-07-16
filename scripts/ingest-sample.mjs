@@ -1,5 +1,5 @@
-// Ingest the bundled sample sheet: node scripts/ingest-sample.mjs
-// (after: docker compose up -d && npm run db:schema && npm run build workspaces)
+// Ingest a sheet JSON: node scripts/ingest-sample.mjs [path/to/sheet.json]
+// Defaults to the bundled synthetic sample. Idempotent per sheet id.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -9,7 +9,10 @@ loadEnv(fileURLToPath(new URL('../.env', import.meta.url)));
 import { PgChunkRepository, LocalEmbeddings, createLogger } from '@plainsheet/adapters';
 import { ingestSheet } from '@plainsheet/core';
 
-const raw = JSON.parse(readFileSync(new URL('../data/sheets/sample-pis.json', import.meta.url), 'utf8'));
+const sheetPath = process.argv[2]
+  ? new URL(`../${process.argv[2].replace(/\\/g, '/')}`, import.meta.url)
+  : new URL('../data/sheets/sample-pis.json', import.meta.url);
+const raw = JSON.parse(readFileSync(sheetPath, 'utf8'));
 const sheet = {
   id: raw.id,
   title: raw.title,

@@ -7,7 +7,7 @@
 //   - latency and cost per case
 // Writes evals/RESULTS.md at the repo root. Exits 1 if any case fails, so CI gates on it.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
@@ -50,6 +50,18 @@ try {
   }
 } catch { /* no .env file: fine, real env vars are set */ }
 
+/** Typography-tolerant comparison: models re-render dashes, curly quotes and
+ * spacing when quoting. Faithfulness means the words match, not the bytes. */
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[‐-―−]/g, '-')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function scoreCase(
   answer: Answer,
   c: GoldenCase,
@@ -68,14 +80,19 @@ async function scoreCase(
       const chunkText = await chunkTextById(citation.chunkId);
       if (chunkText === null) {
         failures.push(`citation points at unknown chunk ${citation.chunkId}`);
-      } else if (citation.quote.length > 0 && !chunkText.toLowerCase().includes(citation.quote.toLowerCase())) {
-        failures.push(`unfaithful citation: quote not found in ${citation.chunkId}`);
+      } else if (citation.quote.length > 0) {
+        // An ellipsis-elided quote is still faithful if every fragment appears.
+        const fragments = normalize(citation.quote).split(/\.{3}|…/).map((f) => f.trim()).filter(Boolean);
+        const haystack = normalize(chunkText);
+        if (!fragments.every((f) => haystack.includes(f))) {
+          failures.push(`unfaithful citation in ${citation.chunkId}: "${citation.quote.slice(0, 80)}"`);
+        }
       }
     }
     for (const phrase of c.expect_phrases ?? []) {
       const grounded = (
         await Promise.all(answer.citations.map((ct) => chunkTextById(ct.chunkId)))
-      ).some((t) => t?.toLowerCase().includes(phrase.toLowerCase()));
+      ).some((t) => t !== null && normalize(t).includes(normalize(phrase)));
       if (!grounded) failures.push(`expected phrase "${phrase}" not grounded in any cited chunk`);
     }
   }
@@ -93,7 +110,9 @@ async function scoreCase(
 }
 
 async function main() {
-  const golden = parse(readFileSync(join(here, '..', 'golden', 'sample-sheet.yaml'), 'utf8')) as GoldenFile;
+  const goldenDir = join(here, '..', 'golden');
+  const goldenFiles = readdirSync(goldenDir).filter((f) => f.endsWith('.yaml')).sort();
+  const suites = goldenFiles.map((f) => parse(readFileSync(join(goldenDir, f), 'utf8')) as GoldenFile);
 
   const pool = new pg.Pool({ connectionString: process.env['DATABASE_URL'] });
   const repo = new PgChunkRepository(pool);
@@ -111,32 +130,35 @@ async function main() {
   // Free-tier RPM headroom: space out cases when running on Gemini's free tier.
   const interCaseDelayMs = Number(process.env['EVAL_DELAY_MS'] ?? (selection.provider === 'gemini' ? 5000 : 0));
 
-  const chunkTextById = async (id: string): Promise<string | null> => {
-    const sectionId = id.split('::').slice(0, 2).join('::');
-    const chunks = await repo.getSection(golden.sheet_id, sectionId);
-    return chunks.find((ch) => ch.id === id)?.text ?? null;
-  };
+  const results: Array<CaseResult & { sheetId: string }> = [];
+  for (const golden of suites) {
+    const chunkTextById = async (id: string): Promise<string | null> => {
+      const sectionId = id.split('::').slice(0, 2).join('::');
+      const chunks = await repo.getSection(golden.sheet_id, sectionId);
+      return chunks.find((ch) => ch.id === id)?.text ?? null;
+    };
 
-  const results: CaseResult[] = [];
-  for (const c of golden.cases) {
-    if (results.length > 0 && interCaseDelayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, interCaseDelayMs));
+    for (const c of golden.cases) {
+      if (results.length > 0 && interCaseDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, interCaseDelayMs));
+      }
+      const t0 = Date.now();
+      const answer = await askQuestion(
+        {
+          llm,
+          tools: { sheetId: golden.sheet_id, repo, embeddings },
+          logger, clock: { now: () => Date.now() }, config,
+        },
+        { question: c.question, readingLevel: c.reading_level, requestId: `eval-${c.id}` },
+      );
+      const failures = await scoreCase(answer, c, chunkTextById);
+      results.push({
+        sheetId: golden.sheet_id,
+        id: c.id, pass: failures.length === 0, failures,
+        latencyMs: Date.now() - t0, costUsd: answer.usage.costUsd, kind: answer.kind,
+      });
+      logger.info('case done', { sheet: golden.sheet_id, id: c.id, pass: failures.length === 0, failures });
     }
-    const t0 = Date.now();
-    const answer = await askQuestion(
-      {
-        llm,
-        tools: { sheetId: golden.sheet_id, repo, embeddings },
-        logger, clock: { now: () => Date.now() }, config,
-      },
-      { question: c.question, readingLevel: c.reading_level, requestId: `eval-${c.id}` },
-    );
-    const failures = await scoreCase(answer, c, chunkTextById);
-    results.push({
-      id: c.id, pass: failures.length === 0, failures,
-      latencyMs: Date.now() - t0, costUsd: answer.usage.costUsd, kind: answer.kind,
-    });
-    logger.info('case done', { id: c.id, pass: failures.length === 0, failures });
   }
   await pool.end();
 
@@ -149,10 +171,10 @@ async function main() {
     '',
     `**${passed}/${results.length} passed** · total cost $${totalCost.toFixed(4)}`,
     '',
-    '| Case | Result | Kind | Latency | Cost | Failures |',
-    '|---|---|---|---|---|---|',
+    '| Sheet | Case | Result | Kind | Latency | Cost | Failures |',
+    '|---|---|---|---|---|---|---|',
     ...results.map((r) =>
-      `| ${r.id} | ${r.pass ? 'PASS' : 'FAIL'} | ${r.kind} | ${r.latencyMs}ms | $${r.costUsd.toFixed(4)} | ${r.failures.join('; ') || '-'} |`,
+      `| ${r.sheetId} | ${r.id} | ${r.pass ? 'PASS' : 'FAIL'} | ${r.kind} | ${r.latencyMs}ms | $${r.costUsd.toFixed(4)} | ${r.failures.join('; ') || '-'} |`,
     ),
     '',
     `_Run: ${new Date().toISOString()}_`,

@@ -29,8 +29,9 @@ const CITATION_PATTERN = /\[cite:([^\]|]+)\|([^\]]*)\]/g;
 function systemPrompt(readingLevel: ReadingLevel): string {
   const level =
     readingLevel === 'plain'
-      ? 'Write for a reading age of about 11: short sentences, everyday words, no jargon. ' +
-        'If a technical term is unavoidable, explain it in brackets.'
+      ? 'Write for a reading age of about 11. Keep every sentence under roughly 15 words. ' +
+        'One idea per sentence. Everyday words only, no jargon. If a technical term is ' +
+        'unavoidable, explain it in brackets.'
       : 'Write for a clinically literate reader: precise terms are fine, stay concise.';
   return [
     'You answer questions about ONE clinical trial participant information sheet.',
@@ -41,7 +42,9 @@ function systemPrompt(readingLevel: ReadingLevel): string {
     '   exactly the marker REFUSED_MEDICAL_ADVICE followed by one sentence explaining you can',
     '   only describe the document, and who to ask instead.',
     '2. Only state what the document supports. Every factual claim must end with a citation',
-    '   marker of the form [cite:<chunkId>|<short verbatim quote from that chunk>].',
+    '   marker of the form [cite:<chunkId>|<quote>]. The quote must be a SHORT contiguous',
+    '   span (under 15 words) copied exactly from the chunk. Never shorten a quote with',
+    '   ellipses; pick the single most relevant span instead.',
     '3. If the question is not medical advice and the document does not contain the answer,',
     '   reply with exactly the marker NOT_IN_DOCUMENT followed by one sentence saying the',
     '   sheet does not cover it and suggesting the participant ask the study team.',
