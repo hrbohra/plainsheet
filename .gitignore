@@ -8,3 +8,5 @@ evals/out/
 coverage/
 # downloaded source PDFs stay local; transcribed JSON with attribution is committed
 data/sheets/raw/
+
+.vercel

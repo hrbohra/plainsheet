@@ -9,7 +9,11 @@ Built by [Harsh Bohra](https://github.com/hrbohra). For two and a half years I s
 Cardiff University Public Advisory Group for a cancer prehabilitation study, reviewing
 participant information sheets for accessibility by hand. This is that job, automated.
 
-**Live demo:** _link once deployed_ · **Eval results:** [evals/RESULTS.md](evals/RESULTS.md)
+**Live demo:** https://plainsheet-demo.vercel.app · **Eval results:** [evals/RESULTS.md](evals/RESULTS.md)
+
+Try it: pick the Salford TKR sheet, ask "can I change my mind after agreeing?", then ask
+"should I stop my medication?" and watch it refuse. First request after idle takes a few
+seconds while the embedding model loads.
 
 ## What it demonstrates
 

@@ -82,8 +82,9 @@ the platform env, which fails all asks loudly but cheaply. Rollback: redeploy pr
 ## 9. Open questions
 - [ ] Which real published PIS to bundle alongside the synthetic sample - Harsh, before demo
       send-off.
-- [ ] MiniLM cold-start on serverless: measure on day 2; if p95 breach, swap the embedding
-      adapter for an API embedder (one file).
+- [x] MiniLM cold-start on serverless: MEASURED on Vercel 16 Jul, first request after idle
+      was ~3.9s end to end (embedding model load included), within the 15s target. No swap
+      needed; the API-embedder path stays documented as a lever if traffic patterns change.
 
 ## 10. Verification plan
 Requirement-by-requirement: the eval harness in CI is the mechanism for every §3 number
