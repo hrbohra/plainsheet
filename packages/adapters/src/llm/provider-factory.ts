@@ -29,9 +29,13 @@ export function createLlmFromEnv(): LlmSelection {
     llm: new GeminiLlm(),
     provider: 'gemini',
     // Rolling aliases: Google gates dated model ids for new API keys, so the
-    // -latest aliases are the stable choice (verified against a fresh key,
-    // Jul 2026; scripts/list-models.mjs shows what a given key can use).
-    answerModel: process.env['ANSWER_MODEL'] ?? 'gemini-flash-latest',
+    // -latest aliases are the stable choice (scripts/list-models.mjs shows what
+    // a given key can use). flash-lite for answers too: measured 16 Jul 2026,
+    // full ask drops from ~18s to ~2s with citation faithfulness and refusal
+    // behavior unchanged on the golden set; flash-latest ignored thinking hints
+    // and spent ~16s reasoning on grounded QA that does not need it. Set
+    // ANSWER_MODEL=gemini-flash-latest to trade latency for the bigger model.
+    answerModel: process.env['ANSWER_MODEL'] ?? 'gemini-flash-lite-latest',
     toolModel: process.env['TOOL_MODEL'] ?? 'gemini-flash-lite-latest',
   };
 }

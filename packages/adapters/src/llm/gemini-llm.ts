@@ -27,9 +27,24 @@ const PRICING: Record<string, { input: number; output: number }> = {
 
 export class GeminiLlm implements LlmProvider {
   private readonly client: GoogleGenAI;
+  /** set false after the API rejects thinkingConfig, so we stop sending it */
+  private thinkingConfigSupported = true;
 
   constructor(apiKey?: string) {
     this.client = new GoogleGenAI({ apiKey: apiKey ?? process.env['GEMINI_API_KEY'] ?? '' });
+  }
+
+  /** Grounded QA needs little deliberation; capping thinking is the main latency
+   * lever on reasoning-heavy flash models (measured ~19s -> a few seconds).
+   * GEMINI_THINKING_LEVEL=off disables the hint; GEMINI_THINKING_BUDGET=<n> uses
+   * a token budget instead (older 2.5-era models). */
+  private thinkingConfig(): Record<string, unknown> | undefined {
+    if (!this.thinkingConfigSupported) return undefined;
+    const budget = process.env['GEMINI_THINKING_BUDGET'];
+    if (budget !== undefined && budget !== '') return { thinkingBudget: Number(budget) };
+    const level = (process.env['GEMINI_THINKING_LEVEL'] ?? 'low').toLowerCase();
+    if (level === 'off') return undefined;
+    return { thinkingLevel: level };
   }
 
   async chat(request: LlmRequest): Promise<LlmResponse> {
@@ -38,7 +53,21 @@ export class GeminiLlm implements LlmProvider {
       parts: m.content.map((b) => this.toGeminiPart(b)),
     }));
 
-    const response = await this.withRetry(() => this.generate(request, contents));
+    let response;
+    try {
+      response = await this.withRetry(() => this.generate(request, contents));
+    } catch (err) {
+      // Model aliases move; if the resolved model rejects thinkingConfig, drop
+      // the hint for the rest of the process and retry once.
+      const message = String((err as Error).message ?? '');
+      const status = (err as { status?: number }).status ?? 0;
+      if (status === 400 && /thinking/i.test(message) && this.thinkingConfigSupported) {
+        this.thinkingConfigSupported = false;
+        response = await this.withRetry(() => this.generate(request, contents));
+      } else {
+        throw err;
+      }
+    }
     const candidate = response.candidates?.[0];
     const parts = (candidate?.content?.parts ?? []) as GeminiPart[];
 
@@ -78,12 +107,14 @@ export class GeminiLlm implements LlmProvider {
   }
 
   private generate(request: LlmRequest, contents: GeminiContent[]) {
+    const thinking = this.thinkingConfig();
     return this.client.models.generateContent({
       model: request.model,
       contents,
       config: {
         systemInstruction: request.system,
         maxOutputTokens: request.maxTokens,
+        ...(thinking ? { thinkingConfig: thinking } : {}),
         ...(request.tools
           ? {
               tools: [{

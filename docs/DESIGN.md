@@ -29,7 +29,9 @@ NON-GOALS (declared so the prototype never quietly becomes what it is not):
   refusals [eval: adversarial cases].
 - Reading level: plain-mode answers at Flesch-Kincaid grade <= 8 [eval: FK scorer].
 - Latency: p95 end-to-end answer < 15 s (multi-step agent; traced per step) [eval: latency
-  column + structured logs].
+  column + structured logs]. Measured 16 Jul: ~2-3 s with gemini-flash-lite-latest answers
+  (default); ~18 s with gemini-flash-latest, which ignored thinking-level hints. Model choice
+  is the latency lever; both recorded in the eval table.
 - Cost: < $0.02 per question at current pricing (Haiku tool steps, Sonnet answer)
   [eval: cost column]. Ceiling at 10x expected demo traffic: ~$5/day, acceptable.
 - Security: no secrets in repo (CI gitleaks); public write path rate-limited [see §6, §7].
