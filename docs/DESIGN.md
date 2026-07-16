@@ -52,6 +52,13 @@ defined user-visible outcome (§6).
 - Fine-tuned model instead of RAG: rejected; grounded QA over a changing document set needs
   an audit trail from answer to source, which retrieval gives for free (full ADR in
   ARCHITECTURE.md).
+- Semantic answer caching (Redis/vector cache in front of the LLM): rejected on safety
+  grounds. Semantically similar questions can require different answers in this domain
+  ("can I take painkillers" vs "can I take double my painkillers"), and serving a cached
+  answer across that line is the worst available failure mode. Also moot at demo traffic.
+  Per-step trace profiling showed the bottleneck was model generation time, not retrieval
+  (~250ms for hybrid search vs 16s for a reasoning-heavy answer model); fixed by model
+  selection instead, 18s to ~2s with quality unchanged on the golden set.
 
 ## 6. Failure modes
 | Dependency | Slow | Down | Wrong | User sees | Blast radius | Mitigation |
@@ -82,4 +89,6 @@ the platform env, which fails all asks loudly but cheaply. Rollback: redeploy pr
 Requirement-by-requirement: the eval harness in CI is the mechanism for every §3 number
 (RESULTS.md is the evidence artifact); unit tests pin domain invariants; the integration
 suite pins hybrid retrieval against real pgvector; the PRR checklist (docs/PRR.md) gates
-sharing the link.
+sharing the link. Metric vocabulary aligns with RAGAS (faithfulness, answer relevancy,
+context precision), implemented deterministically where possible: citation faithfulness here
+is a verbatim string check against the cited chunk, which is stricter than an LLM judge.
