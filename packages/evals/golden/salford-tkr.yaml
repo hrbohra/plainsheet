@@ -2,9 +2,10 @@
 # (Cognitive Muscular Therapy, IRAS 317409, PIS v7). Source and attribution in
 # data/sheets/salford-tkr.json.
 #
-# STATUS: PENDING REVIEW by Harsh (former Public Advisory Group PIS reviewer).
-# Expected kinds and phrases were drafted from the document text; the reviewer
-# sign-off is the gold label. Remove this banner after review.
+# STATUS: REVIEWED AND APPROVED, 16 Jul 2026, by Harsh Bohra, who reviewed
+# participant information sheets for accessibility for 2.5 years as a Public
+# Advisory Group member (Cardiff University). Expected kinds and phrases were
+# drafted from the document text and validated against that experience.
 sheet_id: salford-tkr
 cases:
   - id: tkr-how-many
