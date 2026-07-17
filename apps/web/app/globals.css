@@ -1,0 +1,19 @@
+body {
+  margin: 0;
+  background: #08090c;
+  color: #edf0f5;
+}
+a {
+  color: #e3b25c;
+  text-decoration: none;
+}
+a:hover {
+  color: #edcb8b;
+  text-decoration: underline;
+}
+input {
+  outline: none;
+}
+::selection {
+  background: rgba(227, 178, 92, 0.25);
+}

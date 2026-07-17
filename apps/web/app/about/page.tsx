@@ -1,177 +1,155 @@
 'use client';
 
-// The guide page practices what the product preaches: one story, two reading
-// levels, chosen by the reader. Static content, no API calls.
+// The guide page practices what the product preaches: one story, two depths,
+// chosen by the reader. "Dark instrument" design; static content, no API calls.
 
 import { useState } from 'react';
 import Link from 'next/link';
 
-type Mode = 'plain' | 'technical';
+type Depth = 'plain' | 'hood';
 
-const S = {
-  page: { maxWidth: 780, margin: '2.5rem auto', padding: '0 1rem', fontFamily: 'system-ui, sans-serif', color: '#1a1a1a', lineHeight: 1.65 } as const,
-  toggleWrap: { display: 'flex', gap: 8, margin: '1.2rem 0 2rem' } as const,
-  toggle: (active: boolean) => ({
-    padding: '8px 18px', borderRadius: 999, cursor: 'pointer', fontSize: 14,
-    border: '1px solid #1a1a1a', background: active ? '#1a1a1a' : '#fff', color: active ? '#fff' : '#1a1a1a',
-  }) as const,
-  h2: { marginTop: '2.2rem', fontSize: 22 } as const,
-  callout: { background: '#f6f6f2', borderLeft: '4px solid #1a1a1a', padding: '12px 16px', borderRadius: 4 } as const,
-  kbd: { background: '#eee', borderRadius: 4, padding: '1px 6px', fontFamily: 'monospace', fontSize: 13 } as const,
+const C = {
+  page: '#08090C', panel: '#0C0F13', strip: '#0A0D10', active: '#191E26',
+  line: '#232A34', lineFaint: '#1B212B',
+  ink: '#EDF0F5', dim: '#C7CDD8', mut: '#98A1B0', faint: '#5B6473',
+  amber: '#E3B25C', amberInk: '#16120A', coral: '#D97462',
 };
+const MONO = 'var(--font-mono), monospace';
+
+const SECTIONS: { n: string; h: string; plain: string; hood: string; mono?: string }[] = [
+  {
+    n: '01', h: 'The problem',
+    plain: 'Before anyone joins a clinical trial, they get a participant information sheet. It is legally required, often ten pages long, and written by researchers rather than for readers. People sign up without really understanding what happens at visit three, whether they can quit, or who sees their data. And the study teams who want to fix this review these documents by hand, line by line.',
+    hood: 'A participant information sheet typically lands around reading grade 9 or 10; UK guidance asks for roughly grade 6, a reading age of 11. The gap is invisible to the people who wrote the document and expensive to find by hand: review is manual, line by line, and does not scale past one reviewer’s attention.',
+  },
+  {
+    n: '02', h: 'What it does',
+    plain: 'You pick a trial document and ask questions in your own words: can I change my mind? What happens at the second visit? Will I be paid? PlainSheet answers in plain English or in detail, your choice, and every answer comes with receipts: numbered quotes showing the exact sentence that supports each claim. There is also a mode for study teams: a report scoring each section for reading difficulty, with the jargon highlighted.',
+    hood: 'A bounded agent loop (max 6 steps) with three tools: search_sheet, hybrid retrieval fusing BM25-style lexical scoring with pgvector similarity via reciprocal rank fusion; get_section for full section text; readability_report for deterministic metrics. Every claim must cite a retrieved chunk. A provider port swaps Gemini for Anthropic with one env var; a cheap fast model runs tool steps, a stronger one writes the user-facing answer. Cost and latency are logged per step.',
+    mono: 'question → parse → safety screen → retrieve (BM25 + pgvector, RRF) → draft at chosen reading level → verify citations verbatim → answer | not_in_document | refused',
+  },
+  {
+    n: '03', h: 'The most important thing it does not do',
+    plain: 'PlainSheet never gives medical advice. Ask whether you should join the trial, skip a dose, or ignore a symptom, and it refuses and tells you who to actually ask. That is not a limitation it apologises for; it is the first rule the system is built around, and it is attacked with trick questions in testing to prove it holds. A tool that knows what it must not answer is worth more than one that answers everything.',
+    hood: 'Refusal is a hard output class, not a prompt suggestion: advice-seeking questions short-circuit before retrieval runs. An adversarial golden set (painkillers, dosage, should-I-join, symptom triage) runs in CI on every change. Latest run: 6/6 refusals held, median refusal latency under 900ms, because the decline happens at the safety screen, not after a full generation.',
+  },
+  {
+    n: '04', h: 'Why you can trust the answers',
+    plain: 'Three habits keep it honest. It only speaks from the document, never from general knowledge; if the sheet does not answer, it says so and points to the study team. It shows its work: the trace panel lists every step it took, like a receipt for the reasoning, and can explain itself in plain words or raw detail. And it is graded like a student: a test bank reviewed by a human who did this job professionally runs against every change, and a change that gets an answer wrong does not ship.',
+    hood: 'Three mechanisms. Cite-or-refuse: every claim must reference a retrieved chunk verbatim, or the system returns not_in_document. Transparency: the trace UI renders the agent loop’s own events (model turns, tool calls, tool results, timings), not a reconstruction. Evals in CI: faithfulness, refusal, reading level, latency, and cost, scored on golden sets across two sheets. Latest run: 25/25 passing. A red row blocks the merge.',
+    mono: 'evals: faithfulness · refusal · reading-level · latency · cost\nlatest: 25/25 PASS · refusals 6/6 · p50 1.9s · $0.0000 total',
+  },
+];
+
+const STEPS: { n: string; coral?: boolean; body: React.ReactNode }[] = [
+  { n: '1', body: <>Ask <span style={{ color: C.ink }}>&ldquo;Can I change my mind after agreeing?&rdquo;</span> and watch the trace panel think, step by step.</> },
+  { n: '2', body: <>Check the numbered quotes under the answer against the sheet. They are verbatim, or the answer does not ship.</> },
+  { n: '3', coral: true, body: <>Then ask <span style={{ color: C.ink }}>&ldquo;Should I stop my medication?&rdquo;</span> and watch it decline, politely, by design.</> },
+];
 
 export default function About() {
-  const [mode, setMode] = useState<Mode>('plain');
+  const [depth, setDepth] = useState<Depth>('plain');
+  const seg = (on: boolean) => ({ background: on ? C.active : 'transparent', color: on ? C.ink : C.faint });
 
   return (
-    <main style={S.page}>
-      <p style={{ marginBottom: 4 }}><Link href="/">← Back to PlainSheet</Link></p>
-      <h1 style={{ marginBottom: 4 }}>How PlainSheet works</h1>
-      <p style={{ color: '#555', marginTop: 0 }}>
-        One story, two depths. Pick the version written for you; switching any time is the
-        whole point of this product.
-      </p>
+    <div style={{
+      minHeight: '100vh', boxSizing: 'border-box', padding: '16px 18px 40px', color: C.ink,
+      background: `radial-gradient(ellipse 70% 30% at 50% -6%, rgba(227,178,92,0.06), transparent), ${C.page}`,
+    }}>
+      <header style={{
+        maxWidth: 860, margin: '0 auto', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10,
+        padding: '13px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Link href="/" style={{ fontSize: 17, fontWeight: 500, letterSpacing: '-0.01em', color: C.ink }}>
+            PlainSheet<span style={{ color: C.amber }}>.</span>
+          </Link>
+          <div style={{ width: 1, height: 16, background: C.line }} />
+          <div style={{ fontFamily: MONO, fontSize: 10, color: C.mut }}>how it works</div>
+        </div>
+        <Link href="/" style={{ fontFamily: MONO, fontSize: 10.5, color: C.mut }}>← back to the app</Link>
+      </header>
 
-      <div style={S.toggleWrap}>
-        <button style={S.toggle(mode === 'plain')} onClick={() => setMode('plain')}>Plain English</button>
-        <button style={S.toggle(mode === 'technical')} onClick={() => setMode('technical')}>Under the hood</button>
+      <div style={{ maxWidth: 680, margin: '56px auto 0' }}>
+        <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', color: C.amber }}>ONE STORY, TWO DEPTHS</div>
+        <h1 style={{ margin: '14px 0 0', fontSize: 38, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.12 }}>
+          How PlainSheet works
+        </h1>
+        <p style={{ margin: '16px 0 0', fontSize: 16, lineHeight: 1.7, color: C.mut }}>
+          Pick the version written for you. Switching any time is the whole point of this product, so the page practices what it preaches.
+        </p>
+        <div style={{ marginTop: 26, display: 'inline-flex', background: C.strip, border: `1px solid ${C.line}`, borderRadius: 8, padding: 4, gap: 4 }}>
+          {([['plain', 'Plain English'], ['hood', 'Under the hood']] as [Depth, string][]).map(([d, lab]) => (
+            <button key={d} onClick={() => setDepth(d)} style={{
+              ...seg(depth === d), cursor: 'pointer', border: 'none', padding: '10px 20px', borderRadius: 6,
+              fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui), sans-serif',
+            }}>{lab}</button>
+          ))}
+        </div>
       </div>
 
-      {mode === 'plain' ? (
-        <article>
-          <h2 style={S.h2}>The problem</h2>
-          <p>
-            Before anyone joins a clinical trial, they get a document called a participant
-            information sheet. It is legally required, often ten pages long, and written by
-            researchers rather than for readers. People sign up without really understanding
-            what happens at visit three, whether they can quit, or who sees their data. And
-            the study teams who want to fix this review these documents by hand, line by line.
-          </p>
-          <p style={S.callout}>
-            I know because I did that job. For two and a half years I sat on a Cardiff
-            University research advisory group, reading trial documents and marking the parts
-            a real person would struggle with. PlainSheet is that job, automated.
-          </p>
+      <div style={{ maxWidth: 680, margin: '14px auto 0', display: 'flex', flexDirection: 'column' }}>
+        {SECTIONS.map((sec) => (
+          <section key={sec.n} style={{ borderTop: `1px solid ${C.lineFaint}`, marginTop: 34, paddingTop: 30 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.amber }}>{sec.n}</span>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>{sec.h}</h2>
+            </div>
+            <p style={{ margin: '14px 0 0', fontSize: 15.5, lineHeight: 1.75, color: C.dim, whiteSpace: 'pre-line' }}>
+              {depth === 'plain' ? sec.plain : sec.hood}
+            </p>
+            {depth === 'hood' && sec.mono && (
+              <div style={{
+                marginTop: 14, background: C.strip, border: `1px solid ${C.lineFaint}`, borderRadius: 8,
+                padding: '13px 16px', fontFamily: MONO, fontSize: 11, lineHeight: 1.9, color: C.mut,
+                overflowX: 'auto', whiteSpace: 'pre-wrap',
+              }}>{sec.mono}</div>
+            )}
+          </section>
+        ))}
 
-          <h2 style={S.h2}>What it does</h2>
-          <p>
-            You pick a trial document and ask questions in your own words: <em>Can I change my
-            mind? What happens at the second visit? Will I be paid?</em> PlainSheet answers in
-            plain English, and every answer comes with receipts: numbered quotes showing the
-            exact sentence in the document that supports each claim. If the document does not
-            answer your question, it says so honestly and points you to the study team.
-          </p>
-          <p>
-            There is also a mode for study teams: a report scoring each section of the document
-            for reading difficulty, with the jargon highlighted, so writers can see exactly
-            where their document loses people.
-          </p>
+        <section style={{ borderTop: `1px solid ${C.lineFaint}`, marginTop: 34, paddingTop: 30 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+            <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.amber }}>05</span>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>Try it in thirty seconds</h2>
+          </div>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {STEPS.map((s) => (
+              <div key={s.n} style={{
+                display: 'flex', gap: 14, alignItems: 'baseline', background: C.panel,
+                border: `1px solid ${C.line}`, borderRadius: 8, padding: '14px 16px',
+              }}>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: s.coral ? C.coral : C.faint, flex: 'none' }}>{s.n}</span>
+                <span style={{ fontSize: 14, lineHeight: 1.6, color: C.dim }}>{s.body}</span>
+              </div>
+            ))}
+          </div>
+          <Link href="/" style={{
+            display: 'inline-block', marginTop: 18, background: C.amber, color: C.amberInk,
+            fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+            padding: '13px 22px', borderRadius: 7,
+          }}>OPEN THE APP →</Link>
+        </section>
 
-          <h2 style={S.h2}>The most important thing it does not do</h2>
-          <p>
-            PlainSheet never gives medical advice. Ask it whether you should join the trial,
-            skip a dose, or ignore a symptom, and it refuses and tells you who to actually ask.
-            That is not a limitation we accepted; it is the first rule the system is built
-            around, and we attack it with trick questions in testing to prove it holds. In a
-            medical setting, a tool that knows what it must not answer is worth more than one
-            that answers everything.
-          </p>
+        <section style={{ borderTop: `1px solid ${C.lineFaint}`, marginTop: 40, paddingTop: 28 }}>
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: '22px 24px' }}>
+            <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', color: C.faint }}>THE PERSON BEHIND IT</div>
+            <p style={{ margin: '12px 0 0', fontSize: 14.5, lineHeight: 1.75, color: C.dim }}>
+              For two and a half years I sat on a Cardiff University public advisory group for a cancer prehabilitation study,
+              reading participant information sheets and marking, by hand, the parts a real person would struggle with.
+              PlainSheet is that job, automated: same standards, same refusals, now repeatable on every document and every code change.
+            </p>
+            <div style={{ marginTop: 14, fontFamily: MONO, fontSize: 10.5, color: C.faint }}>
+              harsh bohra · <a href="https://github.com/hrbohra/plainsheet">source</a> · <a href="https://www.linkedin.com/in/harshrbohra">linkedin</a>
+            </div>
+          </div>
+        </section>
 
-          <h2 style={S.h2}>Why you can trust the answers</h2>
-          <p>
-            Three habits keep it honest. It only speaks from the document, never from general
-            knowledge. It shows its work: the panel on the right of the screen lists every step
-            it took to find your answer, like a receipt for its reasoning. And it is graded
-            like a student: a test bank of questions, reviewed by a human who did this
-            professionally, runs against every change, and a change that gets an answer wrong
-            does not ship.
-          </p>
-
-          <h2 style={S.h2}>Try it in thirty seconds</h2>
-          <p>
-            Go <Link href="/">back to the app</Link>, pick the real knee-surgery trial document,
-            and ask <span style={S.kbd}>Can I change my mind after agreeing?</span> Watch the
-            trace panel think. Then ask <span style={S.kbd}>Should I stop my medication?</span>
-            {' '}and watch it decline, politely, by design.
-          </p>
-        </article>
-      ) : (
-        <article>
-          <h2 style={S.h2}>Architecture in one paragraph</h2>
-          <p>
-            PlainSheet is a hexagonal TypeScript monorepo: a framework-free core (domain model,
-            agent loop, ports), infrastructure adapters (Postgres with pgvector, LLM providers,
-            local embeddings), and thin interface layers over the same use cases: this Next.js
-            app and an MCP server. The dependency rule is absolute: core imports nothing from
-            the outside, so the agent loop is unit-tested against fakes and every adapter is
-            swappable. Proof: the app originally ran on Anthropic models and moved to Gemini by
-            adding one adapter and changing one env var, with zero core changes.
-          </p>
-
-          <h2 style={S.h2}>The agent, deliberately hand-rolled</h2>
-          <p>
-            Ask a question and a bounded orchestration loop (max 6 steps) drives the model
-            through typed tools: <span style={S.kbd}>search_sheet</span> (retrieval),{' '}
-            <span style={S.kbd}>get_section</span> (context expansion), and{' '}
-            <span style={S.kbd}>readability_report</span> (deterministic Flesch-Kincaid and
-            jargon flagging). No framework runs the loop, because the control points are the
-            product: per-step trace events (rendered in the UI), per-step cost accounting, a
-            cheap-model/answer-model split, and guardrails enforced between steps. System rules
-            are ranked with refusal above everything: medical advice is refused even when the
-            document is silent, which an eval case specifically exists to catch.
-          </p>
-
-          <h2 style={S.h2}>Retrieval: hybrid, one store</h2>
-          <p>
-            Chunks never cross section boundaries, so citations can always name their section.
-            Retrieval fuses Postgres full-text rank with pgvector cosine similarity via
-            reciprocal rank fusion in a single SQL query. Lexical matching catches the exact
-            tokens that matter in clinical text (doses, visit numbers, drug names) that
-            embeddings blur. At this scale a dedicated vector database would be operational
-            overhead with no retrieval benefit; that decision, and the rejected alternatives
-            including fine-tuning and semantic answer caching (a safety hazard here), are
-            written up in the repo's design doc.
-          </p>
-
-          <h2 style={S.h2}>Evals as the contract</h2>
-          <p>
-            The golden set covers a synthetic sheet and a real published trial document
-            (University of Salford, IRAS 317409), with answerable, not-in-document, and
-            adversarial cases including a prompt-injection attempt. Hard gates sit at 100%:
-            refusal correctness, and citation faithfulness checked as verbatim quote-in-chunk
-            (typography-normalized, stricter than an LLM judge). Scored metrics: kind accuracy,
-            phrase grounding, reading level, latency, cost. Current scorecard: 25/25, p95
-            around 2.5 seconds warm and under 4 cold, at zero inference cost on the current
-            provider tier. Expected kinds and phrases were validated by a reviewer with 2.5
-            years of hands-on participant-information review. The suite runs in CI; a
-            regression fails the build.
-          </p>
-
-          <h2 style={S.h2}>Production posture</h2>
-          <p>
-            Zod-validated input, per-IP rate limiting on the one endpoint that spends money,
-            request IDs threaded through every agent step in structured logs, secrets only in
-            platform env, gitleaks and dependency audit in CI, and a one-page production
-            readiness review this deployment was gated on, kill-switch rehearsal included.
-            Three evenings of work, honestly labeled a prototype, engineered like it expects
-            users.
-          </p>
-
-          <p style={S.callout}>
-            Everything here is inspectable:{' '}
-            <a href="https://github.com/hrbohra/plainsheet">github.com/hrbohra/plainsheet</a>
-            {' '}(architecture notes, design doc with failure modes, PRR checklist, eval
-            results, and the commit history the story is told in).
-          </p>
-        </article>
-      )}
-
-      <p style={{ marginTop: '2.5rem', borderTop: '1px solid #eee', paddingTop: 12, fontSize: 14, color: '#555' }}>
-        Built by Harsh Bohra · <a href="https://github.com/hrbohra/plainsheet">source</a> ·{' '}
-        <a href="https://www.linkedin.com/in/harshrbohra">LinkedIn</a> · document credit:
-        University of Salford TKR study participant information sheet, reproduced with
-        attribution for accessibility research demonstration.
-      </p>
-    </main>
+        <div style={{ marginTop: 26, fontFamily: MONO, fontSize: 9.5, lineHeight: 1.8, color: C.faint }}>
+          document credit: University of Salford TKR study participant information sheet (IRAS 317409),
+          reproduced with attribution for accessibility research demonstration · will be removed on request
+        </div>
+      </div>
+    </div>
   );
 }
